@@ -1,0 +1,8 @@
+node_modules
+redisdata
+build
+config
+test.js
+test.sh
+go.js
+state
