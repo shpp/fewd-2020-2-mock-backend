@@ -1,5 +1,8 @@
-nginx -g 'daemon off;' &
+#nginx -g 'daemon off;' &
 
-cd /project && npm run start 2>&1 | tee -a /storage/logs.txt
+cd /project
+#ln -s /configs ./configs
 
-#do-default
+#DISCORDJSON=/storage/discord.json
+npm run build && echo "STARTING" && node build/index.js 2>&1 | tee -a /storage/logs.txt
+
