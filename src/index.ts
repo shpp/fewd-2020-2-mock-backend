@@ -73,7 +73,7 @@ async function main() {
         res.status(400).send({ error: "Wrong data" });
         return;
       }
-      const new_id: number = (Object.keys(state[req.params.username] || {}).map(x => +x).sort().pop() || 0) + 1;
+      const new_id: number = (Object.keys(state[req.params.username] || {}).map(x => +x).sort((a, b) => a-b).pop() || 0) + 1;
       state[req.params.username] = {
         ...state[req.params.username],
         [new_id]: req.body
