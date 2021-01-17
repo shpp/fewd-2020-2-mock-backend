@@ -1,7 +1,7 @@
 {
   "from": "fi-fo-nginx-node",
   "volumes": [
-     "state:/state:rw"
+     "state:/project/state:rw"
   ],
   "cacheable-environment": [
     "./package.json",
