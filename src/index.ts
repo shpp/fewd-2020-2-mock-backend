@@ -76,7 +76,7 @@ async function main() {
       const new_id: number = (Object.keys(state[req.params.username] || {}).map(x => +x).sort((a, b) => a-b).pop() || 0) + 1;
       state[req.params.username] = {
         ...state[req.params.username],
-        [new_id]: req.body
+        [new_id]: {...req.body, id: new_id}
       };
       res.status(200).json({ result: "Created!" });
     });
