@@ -66,7 +66,7 @@ async function main() {
         })).reduce((acc, el, i) => ({ ...acc, [i + 1]: { ...el, id: i + 1 } }), {});
       }
       const { [req.params.username]: data = {} } = state;
-      res.status(200).json({ data });
+      res.status(200).json({ data: data.filter(x => !x.deleted) });
     })
     .post((req, res) => {
       if (!UserDataRuntype.guard(req.body)) {
@@ -91,7 +91,7 @@ async function main() {
         res.status(400).send({ error: "Wrong data" });
         return;
       }
-      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id)) {
+      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id) || state[req.params.username]?[req.params.user_id]?.deleted) {
         res.status(404).json({ error: "User not found!" });
         return;
       }
@@ -110,7 +110,7 @@ async function main() {
         res.status(404).json({ error: "User not found!" });
         return;
       }
-      delete state[req.params.username][req.params.user_id];
+      state[req.params.username][req.params.user_id].deleted = true;
       res.status(200).json({ result: "Deleted!" });
       glog.info({ data: req.body });
     });
