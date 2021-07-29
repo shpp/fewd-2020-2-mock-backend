@@ -83,7 +83,7 @@ async function main() {
 
   app.route("/:username/users/:user_id")
     .get((req, res) => {
-     if(state[req.params.username]?[req.params.user_id]?.deleted) {
+     if(state[req.params.username]?.[req.params.user_id]?.deleted) {
         res.status(404).json({ error: "User not found!" });
         return;
       }
@@ -95,7 +95,7 @@ async function main() {
         res.status(400).send({ error: "Wrong data" });
         return;
       }
-      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id) || state[req.params.username]?[req.params.user_id]?.deleted) {
+      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id) || state[req.params.username]?.[req.params.user_id]?.deleted) {
         res.status(404).json({ error: "User not found!" });
         return;
       }
