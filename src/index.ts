@@ -83,6 +83,10 @@ async function main() {
 
   app.route("/:username/users/:user_id")
     .get((req, res) => {
+     if(state[req.params.username]?[req.params.user_id]?.deleted) {
+        res.status(404).json({ error: "User not found!" });
+        return;
+      }
       const { [req.params.username]: { [req.params.user_id]: data = {} } } = state;
       res.status(200).json({ data });
     })
