@@ -66,7 +66,7 @@ async function main() {
         })).reduce((acc, el, i) => ({ ...acc, [i + 1]: { ...el, id: i + 1 } }), {});
       }
       const { [req.params.username]: data = {} } = state;
-      res.status(200).json({ data: data.filter((x: any) => !x.deleted) });
+      res.status(200).json({ data: Object.keys(data).filter((x: string) => !data[x].deleted).reduce((acc, key) => ({...acc, [key]: data[key]}), {}) });
     })
     .post((req, res) => {
       if (!UserDataRuntype.guard(req.body)) {
