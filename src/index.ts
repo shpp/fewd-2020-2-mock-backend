@@ -72,10 +72,7 @@ async function main() {
           .reduce(
             (acc, key) => ({
               ...acc,
-              [key]: {
-                ...data[key],
-                id: key,
-              },
+              [key]: data[key],
             }),
             {}
           ),
