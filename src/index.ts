@@ -58,15 +58,28 @@ async function main() {
   app.route("/:username/users")
     .get((req, res) => {
       if (!state.hasOwnProperty(req.params.username)) {
-        state[req.params.username] = Array.from({ length: 50 }, (v, i) => ({
+        state[req.params.username] = Array.from({ length: 50 }, () => ({
           name: faker.name.firstName(),
           surname: faker.name.lastName(),
           avatar: faker.internet.avatar(),
-          birthday: faker.date.past()
-        })).reduce((acc, el, i) => ({ ...acc, [i + 1]: { ...el, id: i + 1 } }), {});
+          birthday: faker.date.past(),
+        })).reduce((acc, el, i) => ({ ...acc, [i + 1]: el }), {});
       }
       const { [req.params.username]: data = {} } = state;
-      res.status(200).json({ data: Object.keys(data).filter((x: string) => !data[x].deleted).reduce((acc, key) => ({...acc, [key]: data[key]}), {}) });
+      res.status(200).json({
+        data: Object.keys(data)
+          .filter((x: string) => !data[x].deleted)
+          .reduce(
+            (acc, key) => ({
+              ...acc,
+              [key]: {
+                ...data[key],
+                id: key,
+              },
+            }),
+            {}
+          ),
+      });
     })
     .post((req, res) => {
       if (!UserDataRuntype.guard(req.body)) {
