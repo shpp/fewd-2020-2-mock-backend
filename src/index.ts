@@ -4,7 +4,7 @@ import * as http from "http";
 import express from "express";
 import * as fs from "fs";
 import { Record, Static, String } from "runtypes";
-import faker from "faker";
+import { faker } from "@faker-js/faker";
 
 try {
   fs.mkdirSync("./state");
