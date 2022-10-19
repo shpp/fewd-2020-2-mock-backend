@@ -1,140 +1,137 @@
-import "source-map-support/register";
-import { Logger } from "tslog";
-import * as http from "http";
-import express from "express";
-import * as fs from "fs";
-import { Record, Static, String } from "runtypes";
-import { faker } from "@faker-js/faker";
+import './utils/source-map-hack-auto';
+import { rollbarCaptureError } from './utils/rollbar';
+import { handleHttpRequests } from './utils/setup-routing';
+import { Router } from 'itty-router';
+import { faker } from '@faker-js/faker/locale/en';
+import { getState, saveState } from './app/state';
+import { State } from './app/types';
+import { UserValidator } from './app/validation';
+import { CfRequest } from './utils/types';
 
-try {
-  fs.mkdirSync("./state");
-} catch (e) {
-}
+export default {
+  fetch: handleHttpRequests<Env>((router: Router): void => {
+    router.get('/:username/users', async (req: CfRequest, env: Env) => {
+      const username = req.params.username;
+      let state: State | null = await getState(username, env);
 
-const state = JSON.parse((() => {
-  try {
-    return "" + fs.readFileSync("./state/state.json");
-  } catch (e) {
-  }
-})() || "{}");
+      if (!state) {
+        state = {
+          users: Array.from({ length: 50 }, () => ({
+            name: faker.name.firstName(),
+            surname: faker.name.lastName(),
+            avatar: faker.internet.avatar(),
+            birthday: faker.date.past(),
+          })).reduce((acc, el, i) => ({ ...acc, [i + 1]: el }), {}),
+        };
 
-
-const UserDataRuntype = Record({
-  name: String,
-  surname: String,
-  avatar: String,
-  birthday: String
-});
-
-type UserData = Static<typeof UserDataRuntype>;
-
-setInterval(() => {
-  fs.writeFileSync("./state/state.json", JSON.stringify(state));
-}, 1000);
-
-const glog = new Logger({
-  dateTimePattern: "hour:minute:second.millisecond",
-  displayFilePath: "hidden"
-  // minLevel: 'debug',
-});
-
-
-async function main() {
-  glog.info("starting...");
-  glog.info("got config...");
-
-  const app = express();
-  const server = http.createServer(app);
-  const port = process.env.port || 3021;
-
-  glog.info("binding to http://localhost:" + port);
-  server.listen(port);
-
-  app.use(express.urlencoded({ extended: true }));
-  app.use(express.json());
-  app.use(express.text());
-  app.use(express.raw());
-
-  app.route("/:username/users")
-    .get((req, res) => {
-      if (!state.hasOwnProperty(req.params.username)) {
-        state[req.params.username] = Array.from({ length: 50 }, () => ({
-          name: faker.name.firstName(),
-          surname: faker.name.lastName(),
-          avatar: faker.internet.avatar(),
-          birthday: faker.date.past(),
-        })).reduce((acc, el, i) => ({ ...acc, [i + 1]: el }), {});
+        await saveState(username, state, env);
       }
-      const { [req.params.username]: data = {} } = state;
-      res.status(200).json({
-        data: Object.keys(data)
-          .filter((x: string) => !data[x].deleted)
-          .reduce(
-            (acc, key) => ({
-              ...acc,
-              [key]: data[key],
-            }),
-            {}
-          ),
-      });
-    })
-    .post((req, res) => {
-      if (!UserDataRuntype.guard(req.body)) {
-        res.status(400).send({ error: "Wrong data" });
-        return;
-      }
-      const new_id: number = (Object.keys(state[req.params.username] || {}).map(x => +x).sort((a, b) => a-b).pop() || 0) + 1;
-      state[req.params.username] = {
-        ...state[req.params.username],
-        [new_id]: req.body
-      };
-      res.status(200).json({ result: "Created!" });
+      const { users: data = {} } = state;
+
+      return new Response(
+        JSON.stringify({
+          data: Object.keys(data)
+            .filter((x: string) => !data[x].deleted)
+            .reduce(
+              (acc, key) => ({
+                ...acc,
+                [key]: data[key],
+              }),
+              {}
+            ),
+        })
+      );
     });
 
-  app.route("/:username/users/:user_id")
-    .get((req, res) => {
-     if(state[req.params.username]?.[req.params.user_id]?.deleted) {
-        res.status(404).json({ error: "User not found!" });
-        return;
+    router.post('/:username/users', async (req: CfRequest, env: Env) => {
+      let data = null;
+
+      try {
+        data = UserValidator.parse(await req.json());
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Wrong data' }), { status: 400 });
       }
-      const { [req.params.username]: { [req.params.user_id]: data = {} } } = state;
-      res.status(200).json({ data });
-    })
-    .put((req, res) => {
-      if (!UserDataRuntype.guard(req.body)) {
-        res.status(400).send({ error: "Wrong data" });
-        return;
-      }
-      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id) || state[req.params.username]?.[req.params.user_id]?.deleted) {
-        res.status(404).json({ error: "User not found!" });
-        return;
-      }
-      const { [req.params.username]: { [req.params.user_id]: data = {} } } = state;
-      state[req.params.username] = {
-        ...state[req.params.username],
-        [req.params.user_id]: {
-          ...state[req.params.username][req.params.user_id],
-          ...req.body
-        }
+
+      const username = req.params.username;
+      const state = (await getState(username, env)) || { users: {} };
+      const id: number =
+        (Object.keys(state.users)
+          .map((x) => +x)
+          .sort((a, b) => a - b)
+          .pop() || 0) + 1;
+      state.users = {
+        ...state.users,
+        [id]: data,
       };
-      res.status(200).json({ result: "Updated!" });
-    })
-    .delete((req, res) => {
-      if (!state[req.params.username]?.hasOwnProperty(req.params.user_id)) {
-        res.status(404).json({ error: "User not found!" });
-        return;
-      }
-      state[req.params.username][req.params.user_id].deleted = true;
-      res.status(200).json({ result: "Deleted!" });
-      glog.info({ data: req.body });
+
+      await saveState(username, state, env);
+
+      return new Response(JSON.stringify({ result: 'Created!' }));
     });
+
+    router.get('/:username/users/:userId', async (req: CfRequest, env: Env) => {
+      const username = req.params.username;
+      const userId = req.params.userId;
+      const state = await getState(username, env);
+      const user = state?.users[userId];
+
+      if (!user || user.deleted) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+      }
+
+      return new Response(JSON.stringify({ data: user }));
+    });
+
+    router.put('/:username/users/:userId', async (req: CfRequest, env: Env) => {
+      let data = null;
+
+      try {
+        data = UserValidator.parse(await req.json());
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Wrong data' }), { status: 400 });
+      }
+
+      const username = req.params.username;
+      const userId = req.params.userId;
+      const state = await getState(username, env);
+      const user = state?.users[userId];
+
+      if (!state || !user || user.deleted) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+      }
+
+      state.users[userId] = data;
+
+      await saveState(username, state, env);
+
+      return new Response(JSON.stringify({ result: 'Updated!' }));
+    });
+
+    router.delete('/:username/users/:userId', async (req: CfRequest, env: Env) => {
+      const username = req.params.username;
+      const userId = req.params.userId;
+      const state = await getState(username, env);
+      const user = state?.users[userId];
+
+      if (!state || !user || user.deleted) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+      }
+
+      user.deleted = true;
+      state.users[userId] = user;
+
+      await saveState(username, state, env);
+
+      return new Response(JSON.stringify({ result: 'Deleted!' }));
+    });
+
+    router.options('*', () => new Response(null));
+
+    router.all('*', () => new Response(JSON.stringify({ error: 'Route not found' }), { status: 404 }));
+  }, rollbarCaptureError),
+} as ExportedHandler<Env>;
+
+export interface Env {
+  REDIS_URL: string;
+  REDIS_TOKEN: string;
 }
-
-main().catch((e) => glog.error(e));
-
-process.on("SIGINT", function onSigint() {
-  console.log("Got SIGINT. Graceful shutdown start", new Date().toISOString());
-  setTimeout(() => {
-    process.exit(0);
-  }, 1000);
-});
